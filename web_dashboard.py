@@ -23,7 +23,8 @@ app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24).hex())
 from config import *
 from main import ClipfarmPipeline
 from automation_system import ContentAutomationSystem
-from models import *
+from cloud_db import *
+from account_health import get_account_health, update_cookie_date
 import sqlite3
 
 # Global state
