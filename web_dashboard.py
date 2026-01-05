@@ -23,6 +23,8 @@ app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24).hex())
 from config import *
 from main import ClipfarmPipeline
 from automation_system import ContentAutomationSystem
+from models import *
+import sqlite3
 
 # Global state
 automation_system = None
@@ -37,39 +39,140 @@ def index():
 @app.route('/api/status')
 def get_status():
     """Get system status"""
-    clips_queue = load_clips_queue()
-    post_history = load_post_history()
-    daily_summary = load_daily_summary()
-    
-    # Count clips in folders
-    tiktok_clips = len(list(TIKTOK_DIR.glob("*.mp4"))) if TIKTOK_DIR.exists() else 0
-    instagram_clips = len(list(INSTAGRAM_DIR.glob("*.mp4"))) if INSTAGRAM_DIR.exists() else 0
-    youtube_clips = len(list(YOUTUBE_SHORTS_DIR.glob("*.mp4"))) if YOUTUBE_SHORTS_DIR.exists() else 0
+    analytics = get_analytics()
     
     return jsonify({
         'automation_running': is_running,
-        'clips_in_queue': len(clips_queue),
-        'total_clips_ready': tiktok_clips + instagram_clips + youtube_clips,
-        'tiktok_clips': tiktok_clips,
-        'instagram_clips': instagram_clips,
-        'youtube_clips': youtube_clips,
-        'posts_today': get_posts_today(post_history),
-        'last_run': daily_summary.get('date') if daily_summary else None,
-        'videos_processed': daily_summary.get('videos_processed', 0) if daily_summary else 0,
-        'clips_generated': daily_summary.get('total_clips', 0) if daily_summary else 0
+        'pending': analytics['pending'],
+        'posted': analytics['posted'],
+        'failed': analytics['failed'],
+        'posts_today': analytics['posts_today'],
+        'total_clips': analytics['total_clips']
     })
+
+@app.route('/api/analytics')
+def get_analytics_endpoint():
+    """Get analytics data"""
+    analytics = get_analytics()
+    return jsonify(analytics)
+
+@app.route('/api/logs')
+def get_logs_endpoint():
+    """Get logs"""
+    limit = request.args.get('limit', 50, type=int)
+    component = request.args.get('component', None)
+    logs = get_logs(component=component, limit=limit)
+    return jsonify(logs)
+
+@app.route('/api/settings')
+def get_settings():
+    """Get all settings"""
+    return jsonify({
+        'auto_posting_enabled': get_setting('auto_posting_enabled', '0'),
+        'auto_posting_tiktok': get_setting('auto_posting_tiktok', '0'),
+        'auto_posting_instagram': get_setting('auto_posting_instagram', '0'),
+        'auto_posting_youtube': get_setting('auto_posting_youtube', '0')
+    })
+
+@app.route('/api/settings/<key>', methods=['POST'])
+def update_setting(key):
+    """Update a setting"""
+    data = request.json
+    value = data.get('value', '0')
+    set_setting(key, value)
+    add_log('info', 'dashboard', f'Setting {key} updated to {value}')
+    return jsonify({'success': True})
+
+@app.route('/api/manual-post', methods=['POST'])
+def manual_post():
+    """Manually post a clip"""
+    data = request.json
+    platform = data.get('platform')
+    filename = data.get('filename')
+    
+    if not platform or not filename:
+        return jsonify({'success': False, 'error': 'Missing platform or filename'}), 400
+    
+    try:
+        # Find clip in database
+        clips = get_clips(platform=platform, status='pending')
+        clip = next((c for c in clips if filename in c['filename']), None)
+        
+        if not clip:
+            return jsonify({'success': False, 'error': 'Clip not found'}), 404
+        
+        # Post using auto_poster
+        from auto_poster import SafeAutoPoster
+        import accounts
+        
+        poster = SafeAutoPoster()
+        account_configs = accounts.get_accounts()
+        
+        if platform not in account_configs or not account_configs[platform]:
+            return jsonify({'success': False, 'error': f'No accounts configured for {platform}'}), 400
+        
+        account = account_configs[platform][0]
+        video_path = Path(clip['video_path'])
+        caption = clip.get('caption', '')
+        
+        success = poster.post_with_safety(platform, video_path, caption, account)
+        
+        if success:
+            record_post(clip['id'], platform, account['username'], True)
+            add_log('info', 'dashboard', f'Manually posted {filename} to {platform}')
+            return jsonify({'success': True})
+        else:
+            record_post(clip['id'], platform, account['username'], False, 'Manual post failed')
+            return jsonify({'success': False, 'error': 'Posting failed'}), 500
+            
+    except Exception as e:
+        add_log('error', 'dashboard', f'Manual post error: {str(e)}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/video/<platform>/<filename>')
+def serve_video(platform, filename):
+    """Serve video file for live feed preview"""
+    platform_dir = READY_TO_POST_DIR / platform
+    video_file = platform_dir / filename
+    
+    if not video_file.exists():
+        return jsonify({'error': 'File not found'}), 404
+    
+    return send_file(str(video_file), mimetype='video/mp4')
 
 @app.route('/api/clips-queue')
 def get_clips_queue():
-    """Get clips waiting to be posted"""
-    clips_queue = load_clips_queue()
-    return jsonify(clips_queue)
+    """Get clips waiting to be posted (from database)"""
+    clips = get_clips(status='pending', limit=100)
+    return jsonify(clips)
 
 @app.route('/api/post-history')
-def get_post_history():
-    """Get posting history"""
-    post_history = load_post_history()
-    return jsonify(post_history)
+def get_post_history_endpoint():
+    """Get posting history (from database)"""
+    conn = get_connection()
+    conn.row_factory = sqlite3.Row
+    c = conn.cursor()
+    
+    c.execute('''SELECT p.*, c.filename, c.platform 
+                 FROM posts p 
+                 LEFT JOIN clips c ON p.clip_id = c.id 
+                 ORDER BY p.posted_at DESC LIMIT 100''')
+    rows = c.fetchall()
+    conn.close()
+    
+    # Format for display
+    history = {}
+    for row in rows:
+        account = row['account'] or 'unknown'
+        date = row['posted_at'][:10] if row['posted_at'] else 'unknown'
+        
+        if account not in history:
+            history[account] = {}
+        if date not in history[account]:
+            history[account][date] = 0
+        history[account][date] += 1
+    
+    return jsonify(history)
 
 @app.route('/api/daily-summary')
 def get_daily_summary():
@@ -162,30 +265,27 @@ def stop_automation():
     return jsonify({'success': True, 'message': 'Stop signal sent'})
 
 @app.route('/api/clips/<platform>')
-def get_clips(platform):
-    """Get clips for a specific platform"""
-    platform_dir = READY_TO_POST_DIR / platform
+def get_clips_endpoint(platform):
+    """Get clips for a specific platform (from database)"""
+    clips = get_clips(platform=platform, status='pending', limit=100)
     
-    if not platform_dir.exists():
-        return jsonify([])
+    # Enhance with file info
+    result = []
+    for clip in clips:
+        video_path = Path(clip['video_path'])
+        if video_path.exists():
+            result.append({
+                'id': clip['id'],
+                'filename': clip['filename'],
+                'path': clip['video_path'],
+                'caption': clip.get('caption', ''),
+                'size': video_path.stat().st_size,
+                'modified': clip['timestamp'],
+                'platform': clip['platform'],
+                'status': clip['status']
+            })
     
-    clips = []
-    for video_file in platform_dir.glob("*.mp4"):
-        caption_file = video_file.with_suffix('.txt')
-        caption = ""
-        if caption_file.exists():
-            with open(caption_file, 'r', encoding='utf-8') as f:
-                caption = f.read()
-        
-        clips.append({
-            'filename': video_file.name,
-            'path': str(video_file),
-            'caption': caption,
-            'size': video_file.stat().st_size,
-            'modified': datetime.fromtimestamp(video_file.stat().st_mtime).isoformat()
-        })
-    
-    return jsonify(clips)
+    return jsonify(result)
 
 @app.route('/api/clip/<platform>/<filename>')
 def get_clip_info(platform, filename):
@@ -318,6 +418,24 @@ def get_posts_today(post_history):
         if today in account_data:
             count += account_data[today]
     return count
+
+# Logging wrapper to add logs to database
+import logging
+class DatabaseLogHandler(logging.Handler):
+    def emit(self, record):
+        try:
+            add_log(
+                level=record.levelname.lower(),
+                component=record.name,
+                message=self.format(record)
+            )
+        except:
+            pass
+
+# Setup logging to database
+logging.basicConfig(level=logging.INFO)
+db_handler = DatabaseLogHandler()
+logging.getLogger().addHandler(db_handler)
 
 # Vercel compatibility - export app for serverless
 # Vercel will automatically detect the 'app' variable

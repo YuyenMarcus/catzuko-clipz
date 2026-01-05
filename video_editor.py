@@ -160,10 +160,11 @@ class VideoEditor:
             traceback.print_exc()
             return None
     
-    def edit_clip_simple(self, video_path: Path, start_time: float, end_time: float,
+    def edit_clip_ffmpeg(self, video_path: Path, start_time: float, end_time: float,
                         clip_name: str) -> Optional[Path]:
         """
-        Simple version: just cut and crop, no captions (faster)
+        Fast FFmpeg version: uses -ss before -i for maximum speed
+        CRITICAL: -ss flag MUST come before -i for fast seeking
         
         Args:
             video_path: Path to source video
@@ -174,6 +175,89 @@ class VideoEditor:
         Returns:
             Path to edited video file
         """
+        import subprocess
+        
+        output_path = self.output_dir / f"{clip_name}.mp4"
+        duration = end_time - start_time
+        
+        # Format time for FFmpeg (HH:MM:SS.mmm)
+        def format_time(seconds):
+            hours = int(seconds // 3600)
+            minutes = int((seconds % 3600) // 60)
+            secs = seconds % 60
+            return f"{hours:02d}:{minutes:02d}:{secs:05.2f}"
+        
+        start_str = format_time(start_time)
+        duration_str = format_time(duration)
+        
+        # Get video dimensions for cropping
+        probe_cmd = [
+            'ffprobe', '-v', 'error', '-select_streams', 'v:0',
+            '-show_entries', 'stream=width,height', '-of', 'csv=p=0',
+            str(video_path)
+        ]
+        
+        try:
+            result = subprocess.run(probe_cmd, capture_output=True, text=True, check=True)
+            width, height = map(int, result.stdout.strip().split(','))
+            
+            # Calculate crop for 9:16 aspect ratio
+            target_w = int(height * 9 / 16)
+            if width > target_w:
+                x_offset = (width - target_w) // 2
+                crop_filter = f"crop={target_w}:{height}:{x_offset}:0"
+            else:
+                target_h = int(width * 16 / 9)
+                y_offset = (height - target_h) // 2
+                crop_filter = f"crop={width}:{target_h}:0:{y_offset}"
+            
+            # FFmpeg command with -ss BEFORE -i for fast seeking
+            cmd = [
+                'ffmpeg',
+                '-ss', start_str,  # CRITICAL: -ss before -i for speed
+                '-i', str(video_path),
+                '-t', duration_str,
+                '-vf', crop_filter,
+                '-c:v', 'libx264',
+                '-c:a', 'aac',
+                '-preset', 'medium',
+                '-movflags', '+faststart',
+                '-y',  # Overwrite output file
+                str(output_path)
+            ]
+            
+            subprocess.run(cmd, check=True, capture_output=True)
+            
+            return output_path if output_path.exists() else None
+            
+        except subprocess.CalledProcessError as e:
+            print(f"FFmpeg error: {e.stderr.decode() if e.stderr else str(e)}")
+            return None
+        except Exception as e:
+            print(f"Error in FFmpeg edit: {e}")
+            return None
+    
+    def edit_clip_simple(self, video_path: Path, start_time: float, end_time: float,
+                        clip_name: str) -> Optional[Path]:
+        """
+        Simple version: just cut and crop, no captions (faster)
+        Falls back to MoviePy if FFmpeg not available
+        
+        Args:
+            video_path: Path to source video
+            start_time: Start time in seconds
+            end_time: End time in seconds
+            clip_name: Name for the output file
+            
+        Returns:
+            Path to edited video file
+        """
+        # Try FFmpeg first (much faster)
+        result = self.edit_clip_ffmpeg(video_path, start_time, end_time, clip_name)
+        if result:
+            return result
+        
+        # Fallback to MoviePy
         output_path = self.output_dir / f"{clip_name}.mp4"
         
         try:

@@ -14,6 +14,7 @@ from transcriber import VideoTranscriber
 from clip_finder import ClipFinder
 from video_editor import VideoEditor
 from caption_generator import CaptionGenerator
+from models import add_clip, add_log, update_clip_status
 
 class ClipfarmPipeline:
     def __init__(self):
@@ -141,8 +142,23 @@ class ClipfarmPipeline:
                 # Copy to platform-specific folders
                 self._organize_clip(edited_clip_path, caption_path, clip_name)
                 
+                # Add to database
+                clip_id = add_clip(
+                    filename=edited_clip_path.name,
+                    video_path=str(edited_clip_path),
+                    platform='tiktok',  # Will be copied to all platforms
+                    caption=caption,
+                    caption_path=str(caption_path),
+                    start_time=clip['start'],
+                    end_time=clip['end'],
+                    reason=clip['reason']
+                )
+                
+                add_log('info', 'pipeline', f'Created clip {clip_name} (ID: {clip_id})')
+                
                 # Add to results
                 results['clips'].append({
+                    'clip_id': clip_id,
                     'clip_name': clip_name,
                     'start_time': clip['start'],
                     'end_time': clip['end'],
