@@ -14,7 +14,8 @@ from transcriber import VideoTranscriber
 from clip_finder import ClipFinder
 from video_editor import VideoEditor
 from caption_generator import CaptionGenerator
-from models import add_clip, add_log, update_clip_status
+from cloud_db import add_clip, add_log, update_clip_status
+from link_rotator import get_affiliate_link
 
 class ClipfarmPipeline:
     def __init__(self):
@@ -126,12 +127,14 @@ class ClipfarmPipeline:
                     print(f"    Failed to edit clip {i}")
                     continue
                 
-                # Generate caption
+                # Generate caption with rotated affiliate link
                 print(f"    Generating caption...")
+                affiliate_link = get_affiliate_link(niche='general')
+                link_text = f"{LINK_IN_BIO_TEXT}\n{affiliate_link}" if affiliate_link else LINK_IN_BIO_TEXT
                 caption = self.caption_generator.generate_caption(
                     clip_segments,
                     use_ai=True,
-                    link_in_bio=LINK_IN_BIO_TEXT
+                    link_in_bio=link_text
                 )
                 
                 # Save caption to file
@@ -142,16 +145,22 @@ class ClipfarmPipeline:
                 # Copy to platform-specific folders
                 self._organize_clip(edited_clip_path, caption_path, clip_name)
                 
+                # Get storage URL if available
+                storage_url = None
+                if isinstance(edited_clip_path, tuple):
+                    edited_clip_path, storage_url = edited_clip_path
+                
                 # Add to database
                 clip_id = add_clip(
-                    filename=edited_clip_path.name,
+                    filename=edited_clip_path.name if isinstance(edited_clip_path, Path) else edited_clip_path.split('/')[-1],
                     video_path=str(edited_clip_path),
                     platform='tiktok',  # Will be copied to all platforms
                     caption=caption,
                     caption_path=str(caption_path),
                     start_time=clip['start'],
                     end_time=clip['end'],
-                    reason=clip['reason']
+                    reason=clip['reason'],
+                    storage_url=storage_url
                 )
                 
                 add_log('info', 'pipeline', f'Created clip {clip_name} (ID: {clip_id})')

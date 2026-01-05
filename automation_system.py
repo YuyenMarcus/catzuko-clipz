@@ -13,6 +13,8 @@ import shutil
 from config import *
 from main import ClipfarmPipeline
 from auto_poster import SafeAutoPoster
+from cloud_db import update_heartbeat, get_setting
+import threading
 
 
 class ContentAutomationSystem:
@@ -43,6 +45,10 @@ class ContentAutomationSystem:
         # Clips queue
         self.clips_queue_file = Path("clips_queue.json")
         self.clips_queue = self._load_clips_queue()
+        
+        # Heartbeat thread
+        self.heartbeat_thread = None
+        self.heartbeat_running = False
         
         print("Automation system initialized!")
         if enable_auto_posting:
@@ -204,6 +210,28 @@ class ContentAutomationSystem:
         
         self._save_clips_queue()
     
+    def _start_heartbeat(self):
+        """Start heartbeat monitoring thread"""
+        self.heartbeat_running = True
+        
+        def heartbeat_loop():
+            while self.heartbeat_running:
+                try:
+                    update_heartbeat('main')
+                except Exception as e:
+                    print(f"Heartbeat error: {e}")
+                time.sleep(60)  # Update every 60 seconds
+        
+        self.heartbeat_thread = threading.Thread(target=heartbeat_loop, daemon=True)
+        self.heartbeat_thread.start()
+        print("Heartbeat monitoring started")
+    
+    def _stop_heartbeat(self):
+        """Stop heartbeat monitoring"""
+        self.heartbeat_running = False
+        if self.heartbeat_thread:
+            self.heartbeat_thread.join(timeout=2)
+    
     def run(self):
         """
         Start the automation system with scheduling
@@ -225,7 +253,16 @@ class ContentAutomationSystem:
             print(f"\nAuto-posting: DISABLED")
             print(f"  Clips will be saved to ready_to_post/ folders")
         
+        # Start heartbeat
+        self._start_heartbeat()
+        
         print(f"\nPress Ctrl+C to stop\n")
+        
+        # Check cloud settings for auto-posting
+        auto_post_enabled = get_setting('auto_posting_enabled', '0') == '1'
+        if auto_post_enabled and not self.enable_auto_posting:
+            print("Cloud settings indicate auto-posting should be enabled")
+            print("Restart with --enable-auto-post to activate")
         
         # Schedule daily content generation at 2 AM
         schedule.every().day.at("02:00").do(self.daily_content_generation)
@@ -259,6 +296,7 @@ class ContentAutomationSystem:
         except KeyboardInterrupt:
             print("\n\nStopping automation system...")
             print("Saving state...")
+            self._stop_heartbeat()
             self._save_clips_queue()
             print("Done!")
 

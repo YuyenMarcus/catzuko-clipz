@@ -40,9 +40,12 @@ def index():
 def get_status():
     """Get system status"""
     analytics = get_analytics()
+    worker_status = get_worker_status('main')
     
     return jsonify({
         'automation_running': is_running,
+        'worker_status': worker_status['status'],
+        'worker_last_seen': worker_status.get('last_seen'),
         'pending': analytics['pending'],
         'posted': analytics['posted'],
         'failed': analytics['failed'],
@@ -132,6 +135,16 @@ def manual_post():
 @app.route('/api/video/<platform>/<filename>')
 def serve_video(platform, filename):
     """Serve video file for live feed preview"""
+    # Try cloud storage first
+    try:
+        clip = get_clip_by_id(int(filename.split('_')[0])) if filename[0].isdigit() else None
+        if clip and clip.get('storage_url'):
+            # Redirect to cloud storage URL
+            return redirect(clip['storage_url'])
+    except:
+        pass
+    
+    # Fallback to local file
     platform_dir = READY_TO_POST_DIR / platform
     video_file = platform_dir / filename
     
@@ -139,6 +152,46 @@ def serve_video(platform, filename):
         return jsonify({'error': 'File not found'}), 404
     
     return send_file(str(video_file), mimetype='video/mp4')
+
+@app.route('/api/worker-status')
+def get_worker_status_endpoint():
+    """Get worker heartbeat status"""
+    status = get_worker_status('main')
+    return jsonify(status)
+
+@app.route('/api/account-health')
+def get_account_health_endpoint():
+    """Get account health status"""
+    health = get_account_health()
+    return jsonify(health)
+
+@app.route('/api/upload-cookie', methods=['POST'])
+def upload_cookie():
+    """Upload new cookie file"""
+    from account_health import health_tracker
+    
+    platform = request.form.get('platform')
+    account = request.form.get('account')
+    
+    if 'cookie_file' not in request.files:
+        return jsonify({'success': False, 'error': 'No file provided'}), 400
+    
+    file = request.files['cookie_file']
+    if file.filename == '':
+        return jsonify({'success': False, 'error': 'No file selected'}), 400
+    
+    try:
+        cookie_data = file.read()
+        success = health_tracker.upload_cookie(platform, account, cookie_data)
+        
+        if success:
+            update_cookie_date(platform, account)
+            add_log('info', 'dashboard', f'Cookie updated for {platform}/{account}')
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': 'Failed to save cookie'}), 500
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @app.route('/api/clips-queue')
 def get_clips_queue():

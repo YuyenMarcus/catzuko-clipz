@@ -152,6 +152,17 @@ class VideoEditor:
             final.close()
             
             print(f"Clip saved: {output_path}")
+            
+            # Upload to cloud storage if enabled
+            try:
+                from cloud_storage import upload_clip
+                storage_url = upload_clip(output_path)
+                if storage_url:
+                    print(f"Uploaded to cloud storage: {storage_url}")
+                    return output_path, storage_url
+            except Exception as e:
+                print(f"Cloud storage upload failed (non-critical): {e}")
+            
             return output_path
             
         except Exception as e:

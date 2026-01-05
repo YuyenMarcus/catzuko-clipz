@@ -484,6 +484,13 @@
         <h1>🎬 Clipfarm Dashboard</h1>
         <p>Automated Content Clipping System</p>
         <div class="status-bar" id="statusBar">
+            <div class="status-item" id="workerStatusItem">
+                <div class="label">Worker</div>
+                <div class="value" id="workerStatus">
+                    <span id="workerDot" style="display:inline-block; width:12px; height:12px; border-radius:50%; background:#cbd5e0; margin-right:5px;"></span>
+                    <span id="workerStatusText">Checking...</span>
+                </div>
+            </div>
             <div class="status-item">
                 <div class="label">Automation</div>
                 <div class="value" id="automationStatus">Loading...</div>
@@ -554,6 +561,7 @@
             <button class="tab" onclick="switchTab('logs')">Log Viewer</button>
             <button class="tab" onclick="switchTab('queue')">Queue</button>
             <button class="tab" onclick="switchTab('history')">History</button>
+            <button class="tab" onclick="switchTab('accounts')">Account Health</button>
         </div>
         
         <div id="livefeed" class="tab-content active">
@@ -589,6 +597,14 @@
             <h2>Post History</h2>
             <div id="historyContent" class="loading">Loading history...</div>
         </div>
+        
+        <div id="accounts" class="tab-content">
+            <h2>Account Health</h2>
+            <p style="color: #718096; margin-bottom: 20px;">
+                Monitor cookie expiration dates. Cookies typically expire after 30 days.
+            </p>
+            <div id="accountsContent" class="loading">Loading account health...</div>
+        </div>
     </div>
     
     <script>
@@ -620,8 +636,10 @@
                 loadLiveFeed(currentPlatform);
             } else if (document.getElementById('queue').classList.contains('active')) {
                 loadQueue();
-            } else if (document.getElementById('history').classList.contains('active')) {
+            } else             if (document.getElementById('history').classList.contains('active')) {
                 loadHistory();
+            } else if (document.getElementById('accounts').classList.contains('active')) {
+                loadAccountHealth();
             }
             
             indicator.classList.remove('spinning');
@@ -909,6 +927,76 @@
             } catch (error) {
                 alert('Error: ' + error.message);
             }
+        }
+        
+        async function loadAccountHealth() {
+            try {
+                const response = await fetch('/api/account-health');
+                const accounts = await response.json();
+                
+                const content = document.getElementById('accountsContent');
+                if (accounts.length === 0) {
+                    content.innerHTML = '<div class="empty-state">No accounts configured</div>';
+                    return;
+                }
+                
+                content.innerHTML = accounts.map(acc => {
+                    const statusColor = acc.status === 'healthy' ? '#48bb78' : 
+                                       acc.status === 'expiring_soon' ? '#ed8936' : '#f56565';
+                    const statusText = acc.status === 'healthy' ? 'Healthy' :
+                                      acc.status === 'expiring_soon' ? 'Expiring Soon' :
+                                      acc.status === 'expired' ? 'Expired' : 'Unknown';
+                    
+                    return `
+                        <div class="clip-card">
+                            <h3>${acc.platform.toUpperCase()} - ${acc.account}</h3>
+                            <div class="meta">
+                                Status: <span style="color: ${statusColor}; font-weight: bold;">${statusText}</span>
+                                ${acc.days_until_expiry !== null ? `| Expires in: ${acc.days_until_expiry} days` : ''}
+                                ${acc.last_updated ? `| Last updated: ${new Date(acc.last_updated).toLocaleDateString()}` : ''}
+                            </div>
+                            <div class="clip-actions">
+                                <button class="btn" onclick="uploadCookie('${acc.platform}', '${acc.account}')">Upload New Cookie</button>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } catch (error) {
+                console.error('Error loading account health:', error);
+            }
+        }
+        
+        function uploadCookie(platform, account) {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = '.pkl';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                
+                const formData = new FormData();
+                formData.append('cookie_file', file);
+                formData.append('platform', platform);
+                formData.append('account', account);
+                
+                try {
+                    const response = await fetch('/api/upload-cookie', {
+                        method: 'POST',
+                        body: formData
+                    });
+                    const result = await response.json();
+                    
+                    if (result.success) {
+                        alert('Cookie uploaded successfully!');
+                        loadAccountHealth();
+                    } else {
+                        alert('Error: ' + result.error);
+                    }
+                } catch (error) {
+                    alert('Error uploading cookie: ' + error.message);
+                }
+            };
+            input.click();
         }
     </script>
 </body>
