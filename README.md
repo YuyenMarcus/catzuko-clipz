@@ -42,13 +42,17 @@ Then open: **http://localhost:5000**
 
 Features:
 - Real-time status monitoring
-- View clips queue and ready clips
-- Posting history and analytics
-- Manual controls (generate clips, start/stop automation)
+- **Live Feed** - Preview videos before posting
+- **Toggle Switches** - Control auto-posting ON/OFF
+- **Log Viewer** - Real-time worker activity
+- **Analytics** - Pending/Posted/Failed counts
 - Browse clips by platform
+- Manual posting controls
 - Download and manage clips
 
-See `DASHBOARD_README.md` for full dashboard documentation.
+**⚠️ Important:** For full features (including Live Feed videos), run dashboard locally. Vercel deployment works for monitoring but videos are processed locally.
+
+See `DASHBOARD_README.md` and `CONFIGURATION_CHECKLIST.md` for details.
 
 ---
 

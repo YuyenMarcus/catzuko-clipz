@@ -204,6 +204,21 @@ python setup.py
 
 All items should show `[OK]` before running the main system.
 
+## 🔍 FINAL CONFIGURATION CHECK
+
+Before deploying, run the configuration checker:
+```bash
+python check_config.py
+```
+
+This verifies:
+- ✅ Ollama connection (must be running)
+- ✅ FFmpeg PATH (Windows: add to System PATH)
+- ✅ Database setup
+- ⚠️ Vercel considerations (Live Feed limitations)
+
+**See `CONFIGURATION_CHECKLIST.md` for detailed setup instructions.**
+
 ---
 
 ## 🎉 YOU'RE READY!
