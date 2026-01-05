@@ -650,10 +650,29 @@
                 const response = await fetch('/api/status');
                 const data = await response.json();
                 
+                // Worker status
+                const workerStatus = data.worker_status || 'unknown';
+                const workerDot = document.getElementById('workerDot');
+                const workerText = document.getElementById('workerStatusText');
+                const workerItem = document.getElementById('workerStatusItem');
+                
+                if (workerStatus === 'online') {
+                    workerDot.style.background = '#48bb78';
+                    workerText.textContent = 'Online';
+                    workerItem.className = 'status-item running';
+                } else if (workerStatus === 'offline') {
+                    workerDot.style.background = '#f56565';
+                    workerText.textContent = 'Offline';
+                    workerItem.className = 'status-item error';
+                } else {
+                    workerDot.style.background = '#cbd5e0';
+                    workerText.textContent = 'Unknown';
+                }
+                
+                // Automation status
                 const statusEl = document.getElementById('automationStatus');
                 statusEl.textContent = data.automation_running ? 'Running' : 'Stopped';
                 statusEl.parentElement.className = 'status-item ' + (data.automation_running ? 'running' : '');
-                
                 document.getElementById('pendingCount').textContent = data.pending || 0;
                 document.getElementById('postedCount').textContent = data.posted || 0;
                 document.getElementById('failedCount').textContent = data.failed || 0;

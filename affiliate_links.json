@@ -1,0 +1,23 @@
+{
+  "links": [
+    {
+      "url": "https://whop.com/your-affiliate-link-1",
+      "niche": "general",
+      "weight": 1,
+      "enabled": true
+    },
+    {
+      "url": "https://whop.com/your-affiliate-link-2",
+      "niche": "trading",
+      "weight": 1,
+      "enabled": true
+    },
+    {
+      "url": "https://whop.com/your-affiliate-link-3",
+      "niche": "ecom",
+      "weight": 1,
+      "enabled": true
+    }
+  ]
+}
+
