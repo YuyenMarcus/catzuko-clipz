@@ -1,0 +1,636 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clipfarm Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: #0f0f0f;
+            color: #e0e0e0;
+            padding: 20px;
+        }
+        
+        .header {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+        }
+        
+        .header h1 {
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+        
+        .status-bar {
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 15px;
+        }
+        
+        .status-item {
+            background: #252525;
+            padding: 10px 15px;
+            border-radius: 5px;
+            border: 1px solid #333;
+        }
+        
+        .status-item .label {
+            color: #888;
+            font-size: 0.85em;
+            margin-bottom: 5px;
+        }
+        
+        .status-item .value {
+            color: #4CAF50;
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        
+        .status-item.running .value {
+            color: #2196F3;
+        }
+        
+        .status-item.error .value {
+            color: #f44336;
+        }
+        
+        .controls {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+        }
+        
+        .btn {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 1em;
+            margin-right: 10px;
+            margin-bottom: 10px;
+            transition: background 0.3s;
+        }
+        
+        .btn:hover {
+            background: #45a049;
+        }
+        
+        .btn:disabled {
+            background: #555;
+            cursor: not-allowed;
+        }
+        
+        .btn-danger {
+            background: #f44336;
+        }
+        
+        .btn-danger:hover {
+            background: #da190b;
+        }
+        
+        .btn-secondary {
+            background: #666;
+        }
+        
+        .btn-secondary:hover {
+            background: #777;
+        }
+        
+        .section {
+            background: #1a1a1a;
+            padding: 20px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            border: 1px solid #333;
+        }
+        
+        .section h2 {
+            color: #4CAF50;
+            margin-bottom: 15px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 10px;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            border-bottom: 1px solid #333;
+        }
+        
+        .tab {
+            padding: 10px 20px;
+            cursor: pointer;
+            background: transparent;
+            border: none;
+            color: #888;
+            border-bottom: 2px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            color: #4CAF50;
+            border-bottom-color: #4CAF50;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .clip-item {
+            background: #252525;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            border: 1px solid #333;
+        }
+        
+        .clip-item h3 {
+            color: #4CAF50;
+            margin-bottom: 10px;
+        }
+        
+        .clip-item .meta {
+            color: #888;
+            font-size: 0.9em;
+            margin-bottom: 10px;
+        }
+        
+        .clip-item .caption {
+            background: #1a1a1a;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            color: #ccc;
+            white-space: pre-wrap;
+        }
+        
+        .clip-actions {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        
+        .clip-actions .btn {
+            padding: 8px 16px;
+            font-size: 0.9em;
+        }
+        
+        .empty-state {
+            text-align: center;
+            padding: 40px;
+            color: #888;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 20px;
+            color: #888;
+        }
+        
+        .platform-badge {
+            display: inline-block;
+            padding: 4px 8px;
+            border-radius: 3px;
+            font-size: 0.8em;
+            margin-left: 10px;
+        }
+        
+        .badge-tiktok {
+            background: #000;
+            color: #fff;
+        }
+        
+        .badge-instagram {
+            background: linear-gradient(45deg, #f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%);
+            color: #fff;
+        }
+        
+        .badge-youtube {
+            background: #FF0000;
+            color: #fff;
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #333;
+        }
+        
+        th {
+            color: #4CAF50;
+            font-weight: bold;
+        }
+        
+        tr:hover {
+            background: #252525;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🎬 Clipfarm Dashboard</h1>
+        <p>Automated Content Clipping System</p>
+        <div class="status-bar" id="statusBar">
+            <div class="status-item">
+                <div class="label">Automation Status</div>
+                <div class="value" id="automationStatus">Loading...</div>
+            </div>
+            <div class="status-item">
+                <div class="label">Clips in Queue</div>
+                <div class="value" id="queueCount">-</div>
+            </div>
+            <div class="status-item">
+                <div class="label">Total Clips Ready</div>
+                <div class="value" id="totalClips">-</div>
+            </div>
+            <div class="status-item">
+                <div class="label">Posts Today</div>
+                <div class="value" id="postsToday">-</div>
+            </div>
+            <div class="status-item">
+                <div class="label">Last Run</div>
+                <div class="value" id="lastRun">-</div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="controls">
+        <h2 style="color: #4CAF50; margin-bottom: 15px;">Controls</h2>
+        <button class="btn" onclick="runGeneration()">Generate Clips Now</button>
+        <button class="btn" onclick="startAutomation()">Start 24/7 Automation</button>
+        <button class="btn btn-danger" onclick="stopAutomation()">Stop Automation</button>
+        <button class="btn btn-secondary" onclick="refreshData()">Refresh</button>
+    </div>
+    
+    <div class="section">
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('queue')">Clips Queue</button>
+            <button class="tab" onclick="switchTab('clips')">Ready Clips</button>
+            <button class="tab" onclick="switchTab('history')">Post History</button>
+            <button class="tab" onclick="switchTab('summary')">Daily Summary</button>
+            <button class="tab" onclick="switchTab('settings')">Settings</button>
+        </div>
+        
+        <div id="queue" class="tab-content active">
+            <h2>Clips Waiting to Post</h2>
+            <div id="queueContent" class="loading">Loading...</div>
+        </div>
+        
+        <div id="clips" class="tab-content">
+            <div class="tabs">
+                <button class="tab active" onclick="switchPlatform('tiktok')">TikTok</button>
+                <button class="tab" onclick="switchPlatform('instagram')">Instagram</button>
+                <button class="tab" onclick="switchPlatform('youtube_shorts')">YouTube Shorts</button>
+            </div>
+            <div id="clipsContent" class="loading">Select a platform...</div>
+        </div>
+        
+        <div id="history" class="tab-content">
+            <h2>Posting History</h2>
+            <div id="historyContent" class="loading">Loading...</div>
+        </div>
+        
+        <div id="summary" class="tab-content">
+            <h2>Daily Summary</h2>
+            <div id="summaryContent" class="loading">Loading...</div>
+        </div>
+        
+        <div id="settings" class="tab-content">
+            <h2>Settings</h2>
+            <div id="settingsContent" class="loading">Loading...</div>
+        </div>
+    </div>
+    
+    <script>
+        let currentPlatform = 'tiktok';
+        
+        // Load data on page load
+        window.addEventListener('load', () => {
+            refreshData();
+            setInterval(refreshData, 30000); // Refresh every 30 seconds
+        });
+        
+        async function refreshData() {
+            await Promise.all([
+                updateStatus(),
+                loadQueue(),
+                loadHistory(),
+                loadSummary(),
+                loadSettings()
+            ]);
+            
+            if (document.getElementById('clips').classList.contains('active')) {
+                loadClips(currentPlatform);
+            }
+        }
+        
+        async function updateStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const data = await response.json();
+                
+                document.getElementById('automationStatus').textContent = 
+                    data.automation_running ? 'Running' : 'Stopped';
+                document.getElementById('automationStatus').parentElement.className = 
+                    'status-item ' + (data.automation_running ? 'running' : '');
+                document.getElementById('queueCount').textContent = data.clips_in_queue;
+                document.getElementById('totalClips').textContent = data.total_clips_ready;
+                document.getElementById('postsToday').textContent = data.posts_today;
+                document.getElementById('lastRun').textContent = 
+                    data.last_run ? new Date(data.last_run).toLocaleString() : 'Never';
+            } catch (error) {
+                console.error('Error updating status:', error);
+            }
+        }
+        
+        async function loadQueue() {
+            try {
+                const response = await fetch('/api/clips-queue');
+                const clips = await response.json();
+                
+                const content = document.getElementById('queueContent');
+                if (clips.length === 0) {
+                    content.innerHTML = '<div class="empty-state">No clips in queue</div>';
+                    return;
+                }
+                
+                content.innerHTML = clips.map(clip => `
+                    <div class="clip-item">
+                        <h3>${clip.video_path.split('/').pop()}</h3>
+                        <div class="meta">
+                            Platform: ${clip.platform} | Added: ${new Date(clip.added_at).toLocaleString()}
+                        </div>
+                        <div class="caption">${clip.caption}</div>
+                        <div class="clip-actions">
+                            <button class="btn btn-secondary" onclick="downloadClip('${clip.video_path}')">Download</button>
+                            <button class="btn btn-danger" onclick="deleteClip('${clip.video_path}')">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading queue:', error);
+            }
+        }
+        
+        async function loadClips(platform) {
+            try {
+                const response = await fetch(`/api/clips/${platform}`);
+                const clips = await response.json();
+                
+                const content = document.getElementById('clipsContent');
+                if (clips.length === 0) {
+                    content.innerHTML = '<div class="empty-state">No clips ready for this platform</div>';
+                    return;
+                }
+                
+                content.innerHTML = clips.map(clip => `
+                    <div class="clip-item">
+                        <h3>${clip.filename}</h3>
+                        <div class="meta">
+                            Size: ${(clip.size / 1024 / 1024).toFixed(2)} MB | 
+                            Modified: ${new Date(clip.modified).toLocaleString()}
+                        </div>
+                        <div class="caption">${clip.caption || 'No caption'}</div>
+                        <div class="clip-actions">
+                            <button class="btn btn-secondary" onclick="downloadClip('${clip.path}')">Download</button>
+                            <button class="btn btn-danger" onclick="deleteClip('${clip.path}')">Delete</button>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error('Error loading clips:', error);
+            }
+        }
+        
+        async function loadHistory() {
+            try {
+                const response = await fetch('/api/post-history');
+                const history = await response.json();
+                
+                const content = document.getElementById('historyContent');
+                if (Object.keys(history).length === 0) {
+                    content.innerHTML = '<div class="empty-state">No posting history</div>';
+                    return;
+                }
+                
+                let html = '<table><tr><th>Account</th><th>Date</th><th>Posts</th></tr>';
+                for (const [account, dates] of Object.entries(history)) {
+                    for (const [date, count] of Object.entries(dates)) {
+                        html += `<tr><td>${account}</td><td>${date}</td><td>${count}</td></tr>`;
+                    }
+                }
+                html += '</table>';
+                content.innerHTML = html;
+            } catch (error) {
+                console.error('Error loading history:', error);
+            }
+        }
+        
+        async function loadSummary() {
+            try {
+                const response = await fetch('/api/daily-summary');
+                const summary = await response.json();
+                
+                const content = document.getElementById('summaryContent');
+                if (!summary || Object.keys(summary).length === 0) {
+                    content.innerHTML = '<div class="empty-state">No summary available</div>';
+                    return;
+                }
+                
+                content.innerHTML = `
+                    <div class="status-bar">
+                        <div class="status-item">
+                            <div class="label">Date</div>
+                            <div class="value">${summary.date ? new Date(summary.date).toLocaleDateString() : 'N/A'}</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="label">Videos Processed</div>
+                            <div class="value">${summary.videos_processed || 0}</div>
+                        </div>
+                        <div class="status-item">
+                            <div class="label">Clips Generated</div>
+                            <div class="value">${summary.total_clips || 0}</div>
+                        </div>
+                    </div>
+                `;
+            } catch (error) {
+                console.error('Error loading summary:', error);
+            }
+        }
+        
+        async function loadSettings() {
+            try {
+                const [channelsRes, accountsRes] = await Promise.all([
+                    fetch('/api/channels'),
+                    fetch('/api/accounts')
+                ]);
+                
+                const channels = await channelsRes.json();
+                const accounts = await accountsRes.json();
+                
+                const content = document.getElementById('settingsContent');
+                content.innerHTML = `
+                    <h3 style="color: #4CAF50; margin-top: 20px;">YouTube Channels</h3>
+                    <p>${channels.channels.length} channel(s) configured</p>
+                    <ul style="margin: 10px 0; padding-left: 20px;">
+                        ${channels.channels.map(c => `<li>${c}</li>`).join('')}
+                    </ul>
+                    
+                    <h3 style="color: #4CAF50; margin-top: 20px;">Accounts</h3>
+                    <p>TikTok: ${accounts.tiktok.length} | Instagram: ${accounts.instagram.length} | YouTube: ${accounts.youtube.length}</p>
+                `;
+            } catch (error) {
+                console.error('Error loading settings:', error);
+            }
+        }
+        
+        function switchTab(tabName) {
+            // Remove active from all tabs in main section
+            document.querySelectorAll('.section > .tabs > .tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.tab-content').forEach(t => t.classList.remove('active'));
+            
+            // Add active to clicked tab
+            if (event && event.target) {
+                event.target.classList.add('active');
+            } else {
+                // Find tab by data attribute or text content
+                document.querySelectorAll('.section > .tabs > .tab').forEach(t => {
+                    if (t.textContent.toLowerCase().includes(tabName.toLowerCase())) {
+                        t.classList.add('active');
+                    }
+                });
+            }
+            
+            document.getElementById(tabName).classList.add('active');
+            
+            if (tabName === 'clips') {
+                loadClips(currentPlatform);
+            }
+        }
+        
+        function switchPlatform(platform) {
+            currentPlatform = platform;
+            document.querySelectorAll('#clips .tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            loadClips(platform);
+        }
+        
+        async function runGeneration() {
+            if (!confirm('Start content generation now?')) return;
+            
+            try {
+                const response = await fetch('/api/run-generation', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Content generation started!');
+                    setTimeout(refreshData, 2000);
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error starting generation: ' + error.message);
+            }
+        }
+        
+        async function startAutomation() {
+            const enableAutoPost = confirm('Enable auto-posting? (Click OK for yes, Cancel for no)');
+            
+            try {
+                const response = await fetch('/api/start-automation', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enable_auto_post: enableAutoPost, headless: false })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Automation started!');
+                    setTimeout(refreshData, 2000);
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error starting automation: ' + error.message);
+            }
+        }
+        
+        async function stopAutomation() {
+            if (!confirm('Stop automation system?')) return;
+            
+            try {
+                const response = await fetch('/api/stop-automation', { method: 'POST' });
+                const result = await response.json();
+                
+                if (result.success) {
+                    alert('Stop signal sent');
+                    setTimeout(refreshData, 2000);
+                }
+            } catch (error) {
+                alert('Error stopping automation: ' + error.message);
+            }
+        }
+        
+        function downloadClip(path) {
+            // Extract platform and filename from path
+            const parts = path.replace(/\\/g, '/').split('/');
+            const filename = parts[parts.length - 1];
+            const platform = parts[parts.length - 2];
+            
+            if (platform && filename) {
+                window.open(`/api/download/${platform}/${filename}`, '_blank');
+            } else {
+                // Fallback: try direct path
+                window.open(`/api/download/${path}`, '_blank');
+            }
+        }
+        
+        async function deleteClip(path) {
+            if (!confirm('Delete this clip?')) return;
+            
+            try {
+                const response = await fetch('/api/delete-clip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ path: path })
+                });
+                const result = await response.json();
+                
+                if (result.success) {
+                    refreshData();
+                } else {
+                    alert('Error: ' + result.error);
+                }
+            } catch (error) {
+                alert('Error deleting clip: ' + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
+

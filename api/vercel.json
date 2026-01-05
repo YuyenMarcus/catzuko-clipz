@@ -1,0 +1,8 @@
+{
+  "functions": {
+    "web_dashboard.py": {
+      "runtime": "python3.9"
+    }
+  }
+}
+

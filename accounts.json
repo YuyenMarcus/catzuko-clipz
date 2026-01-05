@@ -1,0 +1,21 @@
+{
+  "tiktok": [
+    {
+      "username": "account1",
+      "cookies_file": "cookies/tiktok_account1.pkl"
+    }
+  ],
+  "instagram": [
+    {
+      "username": "account1",
+      "cookies_file": "cookies/instagram_account1.pkl"
+    }
+  ],
+  "youtube": [
+    {
+      "username": "account1",
+      "cookies_file": "cookies/youtube_account1.pkl"
+    }
+  ]
+}
+
