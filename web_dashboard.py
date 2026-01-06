@@ -139,24 +139,36 @@ def manual_post():
 
 @app.route('/api/video/<platform>/<filename>')
 def serve_video(platform, filename):
-    """Serve video file for live feed preview"""
-    # Try cloud storage first
+    """
+    Serve video file for live feed preview
+    Uses Firebase Storage URL if available, otherwise falls back to local file
+    """
+    # Try to get clip from database (Firebase or SQLite)
     try:
-        clip = get_clip_by_id(int(filename.split('_')[0])) if filename[0].isdigit() else None
-        if clip and clip.get('storage_url'):
-            # Redirect to cloud storage URL
-            return redirect(clip['storage_url'])
-    except:
-        pass
+        # Try to find clip by filename
+        clips = get_clips(platform=platform, limit=100)
+        clip = next((c for c in clips if c.get('filename') == filename), None)
+        
+        if clip:
+            # Use Firebase Storage URL if available
+            video_url = clip.get('video_url') or clip.get('storage_url')
+            if video_url:
+                # Redirect to Firebase Storage public URL
+                return redirect(video_url)
+    except Exception as e:
+        print(f"Error fetching clip from database: {e}")
     
-    # Fallback to local file
-    platform_dir = READY_TO_POST_DIR / platform
-    video_file = platform_dir / filename
+    # Fallback to local file (for development or if Firebase Storage not available)
+    try:
+        platform_dir = READY_TO_POST_DIR / platform
+        video_file = platform_dir / filename
+        
+        if video_file.exists():
+            return send_file(str(video_file), mimetype='video/mp4')
+    except Exception as e:
+        print(f"Error serving local file: {e}")
     
-    if not video_file.exists():
-        return jsonify({'error': 'File not found'}), 404
-    
-    return send_file(str(video_file), mimetype='video/mp4')
+    return jsonify({'error': 'File not found'}), 404
 
 @app.route('/api/worker-status')
 def get_worker_status_endpoint():
