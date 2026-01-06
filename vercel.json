@@ -1,11 +1,11 @@
 {
   "version": 2,
   "functions": {
-    "web_dashboard.py": {
+    "api/index.py": {
       "maxDuration": 60
     }
   },
   "rewrites": [
-    { "source": "/(.*)", "destination": "/web_dashboard.py" }
+    { "source": "/(.*)", "destination": "/api/index.py" }
   ]
 }
