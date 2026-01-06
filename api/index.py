@@ -1,13 +1,9 @@
 """
-Vercel serverless function entry point for Clipfarm Dashboard
+Vercel Serverless Function Entry Point
+This file is required for Vercel to properly deploy Python Flask apps
 """
 from web_dashboard import app
 
-# Vercel expects the app to be named 'app'
-# This is a handler for Vercel's serverless functions
-def handler(request):
-    return app(request.environ, lambda status, headers: None)
-
-# For Vercel Python runtime
-app = app
-
+# Vercel expects the app to be exported
+# This file makes web_dashboard.py accessible as a serverless function
+__all__ = ['app']
