@@ -20,6 +20,7 @@ try:
 except ImportError:
     from cloud_db import add_clip, add_log, update_clip_status
 from link_rotator import get_affiliate_link
+from storage_uploader import upload_clip_after_editing
 
 class ClipfarmPipeline:
     def __init__(self):
