@@ -504,4 +504,5 @@ if __name__ == '__main__':
     print("Dashboard will be available at: http://localhost:5000")
     print("\nPress Ctrl+C to stop\n")
     
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    # Local development only - debug mode disabled for production
+    app.run(host='127.0.0.1', port=5000, debug=False)
