@@ -30,17 +30,36 @@ class FirebaseDatabase:
         # Initialize Firebase Admin SDK
         if not firebase_admin._apps:
             cred_path = FIREBASE_CREDENTIALS_PATH
-            if os.path.exists(cred_path):
+            
+            # Check if credentials are base64 encoded (Vercel/serverless)
+            if os.environ.get('FIREBASE_CREDENTIALS_BASE64'):
+                import base64
+                import json
+                import tempfile
+                
+                cred_json = base64.b64decode(os.environ['FIREBASE_CREDENTIALS_BASE64']).decode('utf-8')
+                cred_data = json.loads(cred_json)
+                
+                # Create temporary file
+                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                    json.dump(cred_data, f)
+                    temp_cred_path = f.name
+                
+                cred = credentials.Certificate(temp_cred_path)
+                firebase_admin.initialize_app(cred, {
+                    'storageBucket': FIREBASE_STORAGE_BUCKET or cred_data.get('project_id', '') + '.appspot.com'
+                })
+            elif os.path.exists(cred_path):
                 cred = credentials.Certificate(cred_path)
                 firebase_admin.initialize_app(cred, {
                     'storageBucket': FIREBASE_STORAGE_BUCKET
                 })
             else:
-                # Try using default credentials (for Vercel/serverless)
+                # Try using default credentials (for Google Cloud environments)
                 try:
                     firebase_admin.initialize_app()
                 except:
-                    raise ValueError(f"Firebase credentials not found at {cred_path}. Set FIREBASE_CREDENTIALS environment variable.")
+                    raise ValueError(f"Firebase credentials not found. Set FIREBASE_CREDENTIALS or FIREBASE_CREDENTIALS_BASE64 environment variable.")
         
         self.db = firestore.client()
         self._init_collections()
