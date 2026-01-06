@@ -33,7 +33,18 @@ class FirebaseDatabase:
         
         # Initialize Firebase Admin SDK
         if not firebase_admin._apps:
-            cred_path = FIREBASE_CREDENTIALS_PATH
+            # Try multiple credential file names
+            possible_paths = [
+                FIREBASE_CREDENTIALS_PATH,
+                'firebase-key.json',
+                'firebase-credentials.json'
+            ]
+            
+            cred_path = None
+            for path in possible_paths:
+                if os.path.exists(path):
+                    cred_path = path
+                    break
             
             # Check if credentials are base64 encoded (Vercel/serverless)
             if os.environ.get('FIREBASE_CREDENTIALS_BASE64'):
@@ -50,10 +61,11 @@ class FirebaseDatabase:
                     temp_cred_path = f.name
                 
                 cred = credentials.Certificate(temp_cred_path)
+                storage_bucket = FIREBASE_STORAGE_BUCKET or (cred_data.get('project_id', '') + '.appspot.com')
                 firebase_admin.initialize_app(cred, {
-                    'storageBucket': FIREBASE_STORAGE_BUCKET or cred_data.get('project_id', '') + '.appspot.com'
+                    'storageBucket': storage_bucket
                 })
-            elif os.path.exists(cred_path):
+            elif cred_path:
                 cred = credentials.Certificate(cred_path)
                 firebase_admin.initialize_app(cred, {
                     'storageBucket': FIREBASE_STORAGE_BUCKET
@@ -63,7 +75,7 @@ class FirebaseDatabase:
                 try:
                     firebase_admin.initialize_app()
                 except:
-                    raise ValueError(f"Firebase credentials not found. Set FIREBASE_CREDENTIALS or FIREBASE_CREDENTIALS_BASE64 environment variable.")
+                    raise ValueError(f"Firebase credentials not found. Tried: {possible_paths}. Set FIREBASE_CREDENTIALS or FIREBASE_CREDENTIALS_BASE64 environment variable.")
         
         self.db = firestore.client()
         self._init_collections()
@@ -78,12 +90,37 @@ class FirebaseDatabase:
     def add_clip(self, filename: str, video_path: str, platform: str, caption: str = None,
                  caption_path: str = None, start_time: float = None, 
                  end_time: float = None, reason: str = None, storage_url: str = None) -> str:
-        """Add a new clip to database"""
+        """
+        Add a new clip to database
+        Uploads video to Firebase Storage and saves metadata to Firestore
+        """
+        from pathlib import Path
+        from firebase_admin import storage
+        
+        video_path_obj = Path(video_path)
+        video_url = storage_url
+        
+        # Upload video to Firebase Storage if file exists and not already uploaded
+        if video_path_obj.exists() and not storage_url:
+            try:
+                bucket = storage.bucket()
+                # Upload to clips/{filename}
+                blob = bucket.blob(f"clips/{filename}")
+                blob.upload_from_filename(str(video_path_obj))
+                blob.make_public()  # Make publicly accessible for dashboard streaming
+                video_url = blob.public_url
+                print(f"Uploaded to Firebase Storage: {video_url}")
+            except Exception as e:
+                print(f"Firebase Storage upload failed: {e}")
+                # Continue without storage URL
+        
+        # Save metadata to Firestore
         doc_ref = self.db.collection('clips').document()
         
         data = {
             'filename': filename,
             'video_path': video_path,
+            'video_url': video_url,  # Firebase Storage public URL
             'caption_path': caption_path,
             'status': 'pending',
             'platform': platform,
@@ -91,7 +128,7 @@ class FirebaseDatabase:
             'start_time': start_time,
             'end_time': end_time,
             'reason': reason,
-            'storage_url': storage_url,
+            'storage_url': video_url,  # Alias for compatibility
             'created_at': firestore.SERVER_TIMESTAMP,
             'updated_at': firestore.SERVER_TIMESTAMP
         }
@@ -117,7 +154,7 @@ class FirebaseDatabase:
         doc_ref.update(update_data)
     
     def get_clips(self, status: str = None, platform: str = None, limit: int = 100) -> List[Dict]:
-        """Get clips with optional filters"""
+        """Get clips with optional filters - returns clips with Firebase Storage URLs"""
         query = self.db.collection('clips')
         
         if status:
@@ -134,10 +171,22 @@ class FirebaseDatabase:
             clip_data = doc.to_dict()
             clip_data['id'] = doc.id
             # Convert Firestore timestamps to ISO strings
-            if 'created_at' in clip_data and hasattr(clip_data['created_at'], 'isoformat'):
-                clip_data['created_at'] = clip_data['created_at'].isoformat()
-            if 'posted_at' in clip_data and hasattr(clip_data['posted_at'], 'isoformat'):
-                clip_data['posted_at'] = clip_data['posted_at'].isoformat()
+            if 'created_at' in clip_data:
+                if hasattr(clip_data['created_at'], 'isoformat'):
+                    clip_data['created_at'] = clip_data['created_at'].isoformat()
+                elif hasattr(clip_data['created_at'], 'timestamp'):
+                    clip_data['created_at'] = datetime.fromtimestamp(clip_data['created_at'].timestamp()).isoformat()
+            
+            if 'posted_at' in clip_data and clip_data['posted_at']:
+                if hasattr(clip_data['posted_at'], 'isoformat'):
+                    clip_data['posted_at'] = clip_data['posted_at'].isoformat()
+                elif hasattr(clip_data['posted_at'], 'timestamp'):
+                    clip_data['posted_at'] = datetime.fromtimestamp(clip_data['posted_at'].timestamp()).isoformat()
+            
+            # Ensure video_url is available (from Firebase Storage)
+            if 'video_url' not in clip_data and 'storage_url' in clip_data:
+                clip_data['video_url'] = clip_data['storage_url']
+            
             clips.append(clip_data)
         
         return clips
@@ -200,16 +249,26 @@ class FirebaseDatabase:
     
     # Analytics
     def get_analytics(self) -> Dict:
-        """Get analytics summary"""
+        """Get analytics summary - fetches real-time stats from Firestore"""
         # Get counts by status
         pending_query = self.db.collection('clips').where('status', '==', 'pending')
         posted_query = self.db.collection('clips').where('status', '==', 'posted')
         failed_query = self.db.collection('clips').where('status', '==', 'failed')
+        processing_query = self.db.collection('clips').where('status', '==', 'processing')
         
         # Note: Firestore doesn't have count() in free tier, so we fetch and count
+        # For better performance with large datasets, consider using aggregation queries (requires Blaze plan)
         pending_count = len(list(pending_query.stream()))
         posted_count = len(list(posted_query.stream()))
         failed_count = len(list(failed_query.stream()))
+        processing_count = len(list(processing_query.stream()))
+        
+        # Count by platform
+        all_clips = self.db.collection('clips').stream()
+        platform_counts = {}
+        for clip in all_clips:
+            platform = clip.to_dict().get('platform', 'unknown')
+            platform_counts[platform] = platform_counts.get(platform, 0) + 1
         
         # Posts today
         today = datetime.now().date()
@@ -217,12 +276,19 @@ class FirebaseDatabase:
         posts_today_query = self.db.collection('posts').where('posted_at', '>=', today_start).where('success', '==', True)
         posts_today_count = len(list(posts_today_query.stream()))
         
+        # Failed posts today
+        failed_today_query = self.db.collection('posts').where('posted_at', '>=', today_start).where('success', '==', False)
+        failed_today_count = len(list(failed_today_query.stream()))
+        
         return {
             'pending': pending_count,
             'posted': posted_count,
             'failed': failed_count,
+            'processing': processing_count,
+            'platforms': platform_counts,
             'posts_today': posts_today_count,
-            'total_clips': pending_count + posted_count + failed_count
+            'failed_today': failed_today_count,
+            'total_clips': pending_count + posted_count + failed_count + processing_count
         }
     
     # Posts operations

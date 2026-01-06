@@ -1,13 +1,19 @@
 """
 Database models for Clipfarm
-SQLite database to sync dashboard with automation system
+Supports SQLite (local), Firebase Firestore (cloud), and Supabase (cloud)
+Automatically chooses based on environment variables
 """
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional
+import os
 
 DB_PATH = Path("clipfarm.db")
+
+# Check if Firebase should be used
+USE_FIREBASE = os.environ.get('USE_FIREBASE', 'false').lower() == 'true'
+USE_CLOUD_DB = os.environ.get('USE_CLOUD_DB', 'false').lower() == 'true'
 
 def get_connection():
     """Get database connection"""
@@ -15,6 +21,11 @@ def get_connection():
 
 def init_db():
     """Initialize database with all tables"""
+    # If using Firebase or Supabase, skip SQLite initialization
+    if USE_FIREBASE or USE_CLOUD_DB:
+        print("Using cloud database - skipping SQLite initialization")
+        return
+    
     conn = get_connection()
     c = conn.cursor()
     
@@ -32,7 +43,8 @@ def init_db():
                   end_time REAL,
                   reason TEXT,
                   posted_at DATETIME,
-                  error_message TEXT)''')
+                  error_message TEXT,
+                  storage_url TEXT)''')
     
     # Logs table for worker activity
     c.execute('''CREATE TABLE IF NOT EXISTS logs
@@ -68,19 +80,59 @@ def init_db():
     
     conn.commit()
     conn.close()
-    print("Database initialized successfully")
+    print("SQLite database initialized successfully")
 
 def add_clip(filename: str, video_path: str, platform: str, caption: str = None,
              caption_path: str = None, start_time: float = None, 
-             end_time: float = None, reason: str = None) -> int:
-    """Add a new clip to database"""
+             end_time: float = None, reason: str = None, storage_url: str = None) -> int:
+    """
+    Add a new clip to database
+    If using Firebase, uploads video to Firebase Storage first
+    """
+    # Use Firebase if enabled
+    if USE_FIREBASE:
+        try:
+            from firebase_db import add_clip as firebase_add_clip
+            return firebase_add_clip(
+                filename=filename,
+                video_path=video_path,
+                platform=platform,
+                caption=caption,
+                caption_path=caption_path,
+                start_time=start_time,
+                end_time=end_time,
+                reason=reason,
+                storage_url=storage_url
+            )
+        except Exception as e:
+            print(f"Firebase add_clip failed: {e}, falling back to SQLite")
+    
+    # Use Supabase if enabled
+    if USE_CLOUD_DB:
+        try:
+            from cloud_db import add_clip as cloud_add_clip
+            return cloud_add_clip(
+                filename=filename,
+                video_path=video_path,
+                platform=platform,
+                caption=caption,
+                caption_path=caption_path,
+                start_time=start_time,
+                end_time=end_time,
+                reason=reason,
+                storage_url=storage_url
+            )
+        except Exception as e:
+            print(f"Cloud add_clip failed: {e}, falling back to SQLite")
+    
+    # Fallback to SQLite
     conn = get_connection()
     c = conn.cursor()
     
     c.execute('''INSERT INTO clips 
-                 (filename, video_path, caption_path, status, platform, caption, start_time, end_time, reason)
-                 VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?)''',
-              (filename, video_path, caption_path, platform, caption, start_time, end_time, reason))
+                 (filename, video_path, caption_path, status, platform, caption, start_time, end_time, reason, storage_url)
+                 VALUES (?, ?, ?, 'pending', ?, ?, ?, ?, ?, ?)''',
+              (filename, video_path, caption_path, platform, caption, start_time, end_time, reason, storage_url))
     
     clip_id = c.lastrowid
     conn.commit()
@@ -192,6 +244,23 @@ def set_setting(key: str, value: str):
 
 def get_analytics() -> Dict:
     """Get analytics summary"""
+    # Use Firebase if enabled
+    if USE_FIREBASE:
+        try:
+            from firebase_db import get_analytics as firebase_get_analytics
+            return firebase_get_analytics()
+        except Exception as e:
+            print(f"Firebase get_analytics failed: {e}, falling back to SQLite")
+    
+    # Use Supabase if enabled
+    if USE_CLOUD_DB:
+        try:
+            from cloud_db import get_analytics as cloud_get_analytics
+            return cloud_get_analytics()
+        except Exception as e:
+            print(f"Cloud get_analytics failed: {e}, falling back to SQLite")
+    
+    # Fallback to SQLite
     conn = get_connection()
     c = conn.cursor()
     
