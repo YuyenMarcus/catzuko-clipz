@@ -204,10 +204,12 @@ class CloudDatabase:
 
 
 class DatabaseAdapter:
-    """Adapter that switches between local SQLite and cloud Supabase"""
+    """Adapter that switches between local SQLite, Supabase, and Firebase"""
     
     def __init__(self):
-        self.use_cloud = USE_CLOUD_DB and SUPABASE_AVAILABLE
+        # Check Firebase first (if enabled)
+        self.use_firebase = os.environ.get('USE_FIREBASE', 'false').lower() == 'true'
+        self.use_cloud = USE_CLOUD_DB and SUPABASE_AVAILABLE and not self.use_firebase
         
         if self.use_cloud:
             try:

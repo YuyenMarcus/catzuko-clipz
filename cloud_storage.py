@@ -140,12 +140,24 @@ class CloudflareR2Storage:
 
 
 class CloudStorage:
-    """Cloud storage adapter"""
+    """Cloud storage adapter supporting Firebase and Supabase"""
     
     def __init__(self):
         self.storage = None
         
-        if USE_CLOUD_STORAGE:
+        # Check Firebase first (if enabled)
+        USE_FIREBASE_STORAGE = os.environ.get('USE_FIREBASE_STORAGE', 'false').lower() == 'true'
+        
+        if USE_FIREBASE_STORAGE:
+            try:
+                from firebase_storage import FirebaseStorage
+                self.storage = FirebaseStorage()
+                print("Using Firebase Storage")
+            except Exception as e:
+                print(f"Failed to initialize Firebase Storage: {e}")
+                USE_FIREBASE_STORAGE = False
+        
+        if not USE_FIREBASE_STORAGE and USE_CLOUD_STORAGE:
             try:
                 if STORAGE_PROVIDER == 'supabase':
                     self.storage = SupabaseStorage()

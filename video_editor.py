@@ -153,10 +153,18 @@ class VideoEditor:
             
             print(f"Clip saved: {output_path}")
             
-            # Upload to cloud storage if enabled
+            # Upload to cloud storage if enabled (Firebase or Supabase)
             try:
-                from cloud_storage import upload_clip
-                storage_url = upload_clip(output_path)
+                # Try Firebase first, then Supabase
+                USE_FIREBASE_STORAGE = os.environ.get('USE_FIREBASE_STORAGE', 'false').lower() == 'true'
+                
+                if USE_FIREBASE_STORAGE:
+                    from firebase_storage import upload_clip as firebase_upload
+                    storage_url = firebase_upload(output_path)
+                else:
+                    from cloud_storage import upload_clip
+                    storage_url = upload_clip(output_path)
+                
                 if storage_url:
                     print(f"Uploaded to cloud storage: {storage_url}")
                     return output_path, storage_url
