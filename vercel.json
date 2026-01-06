@@ -1,19 +1,11 @@
 {
   "version": 2,
-  "builds": [
-    {
-      "src": "api/index.py",
-      "use": "@vercel/python"
-    }
+  "rewrites": [
+    { "source": "/(.*)", "dest": "/web_dashboard.py" }
   ],
-  "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "api/index.py"
+  "functions": {
+    "web_dashboard.py": {
+      "runtime": "@vercel/python"
     }
-  ],
-  "env": {
-    "FLASK_ENV": "production"
   }
 }
-

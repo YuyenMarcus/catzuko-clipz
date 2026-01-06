@@ -1,14 +1,15 @@
+flask
+firebase-admin
+python-dotenv
+google-cloud-storage
 yt-dlp>=2024.1.1
 feedparser>=6.0.10
 openai-whisper>=20231117
 ollama>=0.1.0
 moviepy>=1.0.3
 selenium>=4.15.0
-python-dotenv>=1.0.0
 schedule>=1.2.0
 webdriver-manager>=4.0.1
-flask>=3.0.0
 supabase>=2.0.0
 boto3>=1.28.0
-firebase-admin>=6.0.0
 
