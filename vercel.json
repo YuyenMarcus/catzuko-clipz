@@ -1,7 +1,7 @@
 {
   "version": 2,
   "rewrites": [
-    { "source": "/(.*)", "dest": "/web_dashboard.py" }
+    { "source": "/(.*)", "destination": "/web_dashboard.py" }
   ],
   "functions": {
     "web_dashboard.py": {
