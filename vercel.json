@@ -1,11 +1,11 @@
 {
   "version": 2,
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/web_dashboard.py" }
-  ],
   "functions": {
     "web_dashboard.py": {
-      "runtime": "@vercel/python"
+      "maxDuration": 60
     }
-  }
+  },
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/web_dashboard.py" }
+  ]
 }
