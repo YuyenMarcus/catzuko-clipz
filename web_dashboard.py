@@ -23,11 +23,12 @@ app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24).hex())
 from config import *
 from main import ClipfarmPipeline
 from automation_system import ContentAutomationSystem
-# Use Firebase if enabled, otherwise Supabase or SQLite
-try:
-    from firebase_db import *
-except ImportError:
-    from cloud_db import *
+# Use models.py which handles Firebase/Supabase/SQLite automatically
+from models import (
+    add_clip, update_clip_status, get_clips, get_clip_by_id,
+    add_log, get_logs, get_setting, set_setting,
+    get_analytics, record_post, update_worker_heartbeat, get_worker_status
+)
 from account_health import get_account_health, update_cookie_date
 import sqlite3
 
@@ -218,31 +219,37 @@ def get_clips_queue():
 
 @app.route('/api/post-history')
 def get_post_history_endpoint():
-    """Get posting history (from database)"""
-    conn = get_connection()
-    conn.row_factory = sqlite3.Row
-    c = conn.cursor()
-    
-    c.execute('''SELECT p.*, c.filename, c.platform 
-                 FROM posts p 
-                 LEFT JOIN clips c ON p.clip_id = c.id 
-                 ORDER BY p.posted_at DESC LIMIT 100''')
-    rows = c.fetchall()
-    conn.close()
-    
-    # Format for display
-    history = {}
-    for row in rows:
-        account = row['account'] or 'unknown'
-        date = row['posted_at'][:10] if row['posted_at'] else 'unknown'
+    """
+    Get posting history from Firebase Firestore or SQLite
+    Returns clips with Firebase Storage URLs
+    """
+    try:
+        # Get posted clips (Firebase or SQLite)
+        posted_clips = get_clips(status='posted', limit=100)
         
-        if account not in history:
-            history[account] = {}
-        if date not in history[account]:
-            history[account][date] = 0
-        history[account][date] += 1
-    
-    return jsonify(history)
+        # Format for display
+        history = {}
+        for clip in posted_clips:
+            # Extract account from clip metadata or use default
+            account = clip.get('account', 'unknown')
+            
+            # Extract date from posted_at timestamp
+            posted_at = clip.get('posted_at', '')
+            if isinstance(posted_at, str) and len(posted_at) >= 10:
+                date = posted_at[:10]
+            else:
+                date = 'unknown'
+            
+            if account not in history:
+                history[account] = {}
+            if date not in history[account]:
+                history[account][date] = 0
+            history[account][date] += 1
+        
+        return jsonify(history)
+    except Exception as e:
+        print(f"Error fetching post history: {e}")
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/api/daily-summary')
 def get_daily_summary():
