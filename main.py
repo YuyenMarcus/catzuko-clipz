@@ -14,7 +14,11 @@ from transcriber import VideoTranscriber
 from clip_finder import ClipFinder
 from video_editor import VideoEditor
 from caption_generator import CaptionGenerator
-from cloud_db import add_clip, add_log, update_clip_status
+# Use Firebase if enabled, otherwise Supabase or SQLite
+try:
+    from firebase_db import add_clip, add_log, update_clip_status
+except ImportError:
+    from cloud_db import add_clip, add_log, update_clip_status
 from link_rotator import get_affiliate_link
 
 class ClipfarmPipeline:
