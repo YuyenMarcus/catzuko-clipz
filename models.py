@@ -23,31 +23,58 @@ FIREBASE_STORAGE_BUCKET = os.environ.get('FIREBASE_STORAGE_BUCKET', 'catzuko-4af
 firebase_db = None
 firebase_storage = None
 
-if USE_FIREBASE:
+def initialize_firebase():
+    """Initialize Firebase Admin SDK - Supports Vercel and local environments"""
+    global firebase_db, firebase_storage, USE_FIREBASE
+    
+    if not USE_FIREBASE:
+        return
+    
     try:
         import firebase_admin
         from firebase_admin import credentials, firestore, storage
         import json
-        import tempfile
         
-        # Initialize Firebase Admin SDK
+        # Initialize Firebase Admin SDK if not already initialized
         if not firebase_admin._apps:
-            # Check if credentials are base64 encoded (Vercel/serverless)
-            if os.environ.get('FIREBASE_CREDENTIALS_BASE64'):
+            cred = None
+            storage_bucket = FIREBASE_STORAGE_BUCKET
+            
+            # Check if we are on Vercel (using FIREBASE_SERVICE_ACCOUNT env var)
+            if os.environ.get('FIREBASE_SERVICE_ACCOUNT'):
+                # On Vercel: Parse the JSON string from the environment variable
+                try:
+                    service_account_info = json.loads(os.environ.get('FIREBASE_SERVICE_ACCOUNT'))
+                    cred = credentials.Certificate(service_account_info)
+                    storage_bucket = storage_bucket or (service_account_info.get('project_id', '') + '.appspot.com')
+                    print("✅ Firebase initialized from Vercel environment variable")
+                except json.JSONDecodeError as e:
+                    print(f"Warning: Failed to parse FIREBASE_SERVICE_ACCOUNT JSON: {e}")
+                    USE_FIREBASE = False
+                    return
+            
+            # Check if credentials are base64 encoded (alternative Vercel method)
+            elif os.environ.get('FIREBASE_CREDENTIALS_BASE64'):
                 import base64
-                cred_json = base64.b64decode(os.environ['FIREBASE_CREDENTIALS_BASE64']).decode('utf-8')
-                cred_data = json.loads(cred_json)
-                
-                # Create temporary file for Vercel
-                with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
-                    json.dump(cred_data, f)
-                    temp_cred_path = f.name
-                
-                cred = credentials.Certificate(temp_cred_path)
-                storage_bucket = FIREBASE_STORAGE_BUCKET or (cred_data.get('project_id', '') + '.appspot.com')
-                firebase_admin.initialize_app(cred, {
-                    'storageBucket': storage_bucket
-                })
+                import tempfile
+                try:
+                    cred_json = base64.b64decode(os.environ['FIREBASE_CREDENTIALS_BASE64']).decode('utf-8')
+                    cred_data = json.loads(cred_json)
+                    
+                    # Create temporary file for Vercel
+                    with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+                        json.dump(cred_data, f)
+                        temp_cred_path = f.name
+                    
+                    cred = credentials.Certificate(temp_cred_path)
+                    storage_bucket = storage_bucket or (cred_data.get('project_id', '') + '.appspot.com')
+                    print("✅ Firebase initialized from base64 encoded credentials")
+                except Exception as e:
+                    print(f"Warning: Failed to decode base64 credentials: {e}")
+                    USE_FIREBASE = False
+                    return
+            
+            # Locally: Use your actual file
             else:
                 # Try multiple credential file names
                 possible_paths = [
@@ -64,27 +91,40 @@ if USE_FIREBASE:
                 
                 if cred_path:
                     cred = credentials.Certificate(cred_path)
-                    firebase_admin.initialize_app(cred, {
-                        'storageBucket': FIREBASE_STORAGE_BUCKET
-                    })
+                    print(f"✅ Firebase initialized from local file: {cred_path}")
                 else:
                     # Try default credentials (Google Cloud environments)
                     try:
+                        cred = None  # Will use default credentials
                         firebase_admin.initialize_app()
-                    except:
-                        print("Warning: Firebase credentials not found. Falling back to SQLite.")
+                        print("✅ Firebase initialized using default credentials")
+                    except Exception as e:
+                        print(f"Warning: Firebase credentials not found. Falling back to SQLite.")
+                        print(f"  Tried paths: {possible_paths}")
                         USE_FIREBASE = False
-        
-        if USE_FIREBASE:
+                        return
+            
+            # Initialize Firebase app
+            if cred:
+                firebase_admin.initialize_app(cred, {
+                    'storageBucket': storage_bucket
+                })
+            
+            # Get Firestore and Storage clients
             firebase_db = firestore.client()
             firebase_storage = storage.bucket()
-            print("✅ Firebase initialized - Using Firestore & Storage")
+            print(f"✅ Firebase ready - Firestore & Storage (bucket: {storage_bucket})")
+            
     except ImportError:
         print("Warning: firebase-admin not installed. Install with: pip install firebase-admin")
         USE_FIREBASE = False
     except Exception as e:
         print(f"Warning: Firebase initialization failed: {e}. Falling back to SQLite.")
         USE_FIREBASE = False
+
+# Initialize Firebase on import
+if USE_FIREBASE:
+    initialize_firebase()
 
 # SQLite fallback
 if not USE_FIREBASE:

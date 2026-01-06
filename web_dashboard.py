@@ -23,12 +23,23 @@ app.secret_key = os.environ.get('SECRET_KEY', os.urandom(24).hex())
 from config import *
 from main import ClipfarmPipeline
 from automation_system import ContentAutomationSystem
-# Use models.py which handles Firebase/Supabase/SQLite automatically
+
+# Initialize Firebase first (if enabled) - this handles Vercel environment variables
+# Import models.py which handles Firebase/Supabase/SQLite automatically
 from models import (
     add_clip, update_clip_status, get_clips, get_clip_by_id,
     add_log, get_logs, get_setting, set_setting,
-    get_analytics, record_post, update_worker_heartbeat, get_worker_status
+    get_analytics, record_post, update_worker_heartbeat, get_worker_status,
+    initialize_firebase  # Re-export for explicit initialization if needed
 )
+
+# Ensure Firebase is initialized (models.py does this on import, but we can verify)
+if os.environ.get('USE_FIREBASE', 'false').lower() == 'true':
+    try:
+        initialize_firebase()
+    except:
+        pass  # Already initialized in models.py
+
 from account_health import get_account_health, update_cookie_date
 import sqlite3
 
