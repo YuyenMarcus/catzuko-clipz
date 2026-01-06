@@ -170,6 +170,27 @@ class ClipfarmPipeline:
                 
                 add_log('info', 'pipeline', f'Created clip {clip_name} (ID: {clip_id})')
                 
+                # Upload to Firebase Storage with signed URL (after editing is done)
+                # This sends it to the cloud so your Vercel dashboard can play it instantly!
+                if isinstance(edited_clip_path, Path) and edited_clip_path.exists():
+                    print(f"    🚀 Uploading to Firebase Storage with signed URL...")
+                    try:
+                        cloud_url = upload_clip_after_editing(
+                            edited_video_path=edited_clip_path,
+                            clip_id=clip_id,
+                            filename=edited_clip_path.name,
+                            platform='tiktok',
+                            caption=caption
+                        )
+                        if cloud_url:
+                            print(f"    ✅ Cloud sync complete! Video available at signed URL")
+                            # Update clip status to ready
+                            update_clip_status(clip_id, 'ready', None)
+                        else:
+                            print(f"    ⚠️ Cloud upload skipped or failed (non-critical)")
+                    except Exception as e:
+                        print(f"    ⚠️ Cloud upload error (non-critical): {e}")
+                
                 # Add to results
                 results['clips'].append({
                     'clip_id': clip_id,
