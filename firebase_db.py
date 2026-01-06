@@ -17,8 +17,12 @@ except ImportError:
 
 # Firebase configuration
 USE_FIREBASE = os.environ.get('USE_FIREBASE', 'false').lower() == 'true'
-FIREBASE_CREDENTIALS_PATH = os.environ.get('FIREBASE_CREDENTIALS', 'firebase-credentials.json')
-FIREBASE_STORAGE_BUCKET = os.environ.get('FIREBASE_STORAGE_BUCKET', '')
+# Try multiple possible credential file names
+FIREBASE_CREDENTIALS_PATH = (
+    os.environ.get('FIREBASE_CREDENTIALS') or 
+    os.environ.get('FIREBASE_CREDENTIALS_FILE', 'firebase-key.json')
+)
+FIREBASE_STORAGE_BUCKET = os.environ.get('FIREBASE_STORAGE_BUCKET', 'catzuko-4afef.appspot.com')
 
 class FirebaseDatabase:
     """Firebase Firestore database interface"""

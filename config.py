@@ -49,6 +49,10 @@ VIDEO_FPS = 30
 WHOP_AFFILIATE_LINK = ""  # Add your Whop affiliate link here
 LINK_IN_BIO_TEXT = "Link in bio 🔗"
 
+# Firebase settings (if using Firebase)
+FIREBASE_CREDENTIALS_FILE = "firebase-key.json"  # Path to Firebase credentials
+FIREBASE_STORAGE_BUCKET = "catzuko-4afef.appspot.com"  # Your Firebase Storage bucket
+
 # Selenium settings (for automated posting - optional)
 CHROME_DRIVER_PATH = ""  # Path to chromedriver.exe (leave empty to use system PATH)
 HEADLESS_BROWSER = False  # Set to True to run browser in background

@@ -58,5 +58,6 @@ Thumbs.db
 
 # Firebase
 firebase-credentials.json
+firebase-key.json
 *-firebase-adminsdk-*.json
 
