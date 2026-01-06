@@ -65,6 +65,13 @@ class AccountSetup:
             print(f"\n✅ TikTok cookies saved to: {cookies_file}")
             print("   You can now use this account for auto-posting!")
             
+            # Update account health tracker
+            try:
+                from account_health import update_cookie_date
+                update_cookie_date('tiktok', account_name)
+            except:
+                pass
+            
         except Exception as e:
             print(f"\n❌ Error: {e}")
         finally:
@@ -96,6 +103,13 @@ class AccountSetup:
             
             print(f"\n✅ Instagram cookies saved to: {cookies_file}")
             print("   You can now use this account for auto-posting!")
+            
+            # Update account health tracker
+            try:
+                from account_health import update_cookie_date
+                update_cookie_date('instagram', account_name)
+            except:
+                pass
             
         except Exception as e:
             print(f"\n❌ Error: {e}")
@@ -130,6 +144,13 @@ class AccountSetup:
             
             print(f"\n✅ YouTube cookies saved to: {cookies_file}")
             print("   You can now use this account for auto-posting!")
+            
+            # Update account health tracker
+            try:
+                from account_health import update_cookie_date
+                update_cookie_date('youtube', account_name)
+            except:
+                pass
             
         except Exception as e:
             print(f"\n❌ Error: {e}")
